@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal Shell — Portfolio & Dev Environment</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts for Monospace Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        /* Base Theme Variable Defaults (Dracula Dark Default) */
+        :root {
+            --bg-color: #0f172a;
+            --term-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent-color: #38bdf8;
+            --prompt-user: #4ade80;
+            --prompt-dir: #818cf8;
+            --glow: 0 0 10px rgba(56, 189, 248, 0.4);
+            --font-family: 'Fira Code', monospace;
+            --crt-scanline: transparent;
+        }
+
+        /* Matrix Green Theme */
+        .theme-matrix {
+            --bg-color: #050b05;
+            --term-bg: #0a150a;
+            --text-color: #00ff66;
+            --accent-color: #00ff66;
+            --prompt-user: #00cc52;
+            --prompt-dir: #00ff66;
+            --glow: 0 0 8px rgba(0, 255, 102, 0.6);
+            --font-family: 'Fira Code', monospace;
+        }
+
+        /* Amber Retro Theme */
+        .theme-amber {
+            --bg-color: #120b00;
+            --term-bg: #1f1400;
+            --text-color: #ffb000;
+            --accent-color: #ffc43d;
+            --prompt-user: #ff9d00;
+            --prompt-dir: #ffb000;
+            --glow: 0 0 8px rgba(255, 176, 0, 0.6);
+            --font-family: 'VT323', monospace;
+        }
+
+        /* Cyberpunk Neon Theme */
+        .theme-cyberpunk {
+            --bg-color: #0d0221;
+            --term-bg: #190535;
+            --text-color: #00f0ff;
+            --accent-color: #ff007f;
+            --prompt-user: #ff007f;
+            --prompt-dir: #ffe600;
+            --glow: 0 0 10px rgba(0, 240, 255, 0.5);
+            --font-family: 'Fira Code', monospace;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .terminal-container {
+            background-color: var(--term-bg);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), var(--glow);
+        }
+
+        /* Text Glow Effect */
+        .glow-effect {
+            text-shadow: var(--glow);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Blinking Cursor Animation */
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        .animate-cursor {
+            animation: blink 1s infinite;
+        }
+
+        /* CRT Overlay Effect Options */
+        .crt-overlay::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 20;
+            background-size: 100% 3px, 6px 100%;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        /* Matrix Canvas */
+        #matrixCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: none;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden relative select-none">
+
+    <!-- CRT Visual Filter Overlay (Optional Toggleable Visual Depth) -->
+    <div id="crtScreen" class="absolute inset-0 pointer-events-none crt-overlay hidden z-30"></div>
+
+    <!-- Matrix Animation Canvas Overlay -->
+    <canvas id="matrixCanvas"></canvas>
+
+    <!-- Main Terminal Container Window -->
+    <div class="terminal-container w-full max-w-5xl h-full max-h-[90vh] rounded-xl flex flex-col border border-white/10 relative overflow-hidden z-10 transition-all duration-300">
+        
+        <!-- Top Window Toolbar / Titlebar -->
+        <div class="window-header bg-black/40 backdrop-blur-md px-4 py-3 border-b border-white/10 flex items-center justify-between shrink-0">
+            <!-- Left: OS Window Action Buttons -->
+            <div class="flex items-center space-x-2">
+                <button onclick="clearTerminal()" title="Clear Terminal (Close)" class="w-3.5 h-3.5 rounded-full bg-red-500 hover:bg-red-600 transition-colors flex items-center justify-center text-[8px] text-red-950 font-bold group">
+                    <span class="hidden group-hover:inline"><i class="fa-solid fa-xmark"></i></span>
+                </button>
+                <button onclick="toggleMinimize()" title="Minimize" class="w-3.5 h-3.5 rounded-full bg-yellow-500 hover:bg-yellow-600 transition-colors flex items-center justify-center text-[8px] text-yellow-950 font-bold group">
+                    <span class="hidden group-hover:inline"><i class="fa-solid fa-minus"></i></span>
+                </button>
+                <button onclick="toggleFullscreen()" title="Maximize / Fullscreen" class="w-3.5 h-3.5 rounded-full bg-green-500 hover:bg-green-600 transition-colors flex items-center justify-center text-[8px] text-green-950 font-bold group">
+                    <span class="hidden group-hover:inline"><i class="fa-solid fa-expand"></i></span>
+                </button>
+            </div>
+
+            <!-- Center: Terminal Title & Active Host Info -->
+            <div class="text-xs sm:text-sm font-medium tracking-wide text-white/70 flex items-center gap-2">
+                <i class="fa-solid fa-terminal text-xs"></i>
+                <span id="windowTitle">nipuran@shell: ~ (zsh)</span>
+            </div>
+
+            <!-- Right: Quick Actions / Sound Toggle & Help Indicator -->
+            <div class="flex items-center space-x-3 text-xs text-white/60">
+                <button id="soundToggle" onclick="toggleAudio()" title="Toggle Typing Sound Effects" class="hover:text-white transition-colors">
+                    <i class="fa-solid fa-volume-xmark text-red-400"></i>
+                </button>
+                <button onclick="executeCommand('theme')" title="Quick Switch Theme" class="hover:text-white transition-colors">
+                    <i class="fa-solid fa-palette"></i>
+                </button>
+                <button onclick="executeCommand('help')" title="Show Command List" class="hover:text-white transition-colors hidden sm:inline-block">
+                    <i class="fa-solid fa-circle-question"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Terminal Output Scroll Area -->
+        <div id="terminalBody" class="flex-1 p-4 sm:p-6 overflow-y-auto font-mono text-sm leading-relaxed space-y-3 cursor-text glow-effect" onclick="focusInput()">
+            
+            <!-- Welcome Banner -->
+            <div id="welcomeBanner" class="space-y-2 mb-4">
+                <pre class="text-xs sm:text-sm font-bold text-sky-400 leading-none overflow-x-auto select-text hidden sm:block">
+   ___   __   _______   __    ___  _____  _____    ______  ______ __    __
+  / _ \ / /  / __/ \ \ / /   / _ \/ __/ |/ / _ \  / __/ / / / __// /   / /
+ / __ // /__/ _/    \ V /   / // / _//    / // / _\ \/ /_/ / _// /___/ /___
+/_/ |_/____/___/     |_|   /____/___/_/|_/____/ /___/\____/___/____/____/
+                </pre>
+                <p class="font-bold text-base sm:text-lg">Welcome to Nipuran's Interactive Terminal v2.4.0-release</p>
+                <p class="text-xs sm:text-sm text-white/70">Type <span class="text-yellow-400 font-semibold cursor-pointer underline" onclick="executeCommand('help')">help</span> to view all available commands or click suggested actions below.</p>
+                <p class="text-xs text-white/50">Tip: Use <kbd class="px-1.5 py-0.5 bg-white/10 rounded text-white">Tab</kbd> for auto-completion, and <kbd class="px-1.5 py-0.5 bg-white/10 rounded text-white">↑</kbd> <kbd class="px-1.5 py-0.5 bg-white/10 rounded text-white">↓</kbd> for command navigation.</p>
+                
+                <!-- Quick Command Buttons for Touch/Mouse users -->
+                <div class="flex flex-wrap gap-2 pt-2">
+                    <button onclick="executeCommand('about')" class="text-xs px-2.5 py-1 rounded border border-white/20 hover:bg-white/10 transition">⚡ about</button>
+                    <button onclick="executeCommand('skills')" class="text-xs px-2.5 py-1 rounded border border-white/20 hover:bg-white/10 transition">🛠️ skills</button>
+                    <button onclick="executeCommand('projects')" class="text-xs px-2.5 py-1 rounded border border-white/20 hover:bg-white/10 transition">🚀 projects</button>
+                    <button onclick="executeCommand('contact')" class="text-xs px-2.5 py-1 rounded border border-white/20 hover:bg-white/10 transition">📬 contact</button>
+                    <button onclick="executeCommand('matrix')" class="text-xs px-2.5 py-1 rounded border border-white/20 hover:bg-white/10 transition">🟢 matrix</button>
+                </div>
+            </div>
+
+            <!-- Dynamic Output Container -->
+            <div id="outputContainer" class="space-y-3 select-text"></div>
+
+            <!-- Active Input Line -->
+            <div class="flex items-center flex-wrap sm:flex-nowrap gap-x-2 pt-1" id="inputLineContainer">
+                <div class="flex items-center gap-1 shrink-0 select-none">
+                    <span class="font-bold" style="color: var(--prompt-user)">nipuran@shell</span>
+                    <span class="text-white/60">:</span>
+                    <span class="font-bold" style="color: var(--prompt-dir)">~</span>
+                    <span class="font-bold text-white/80">$</span>
+                </div>
+                <div class="flex-1 flex items-center min-w-[150px] relative">
+                    <input type="text" id="cliInput" 
+                           class="w-full bg-transparent border-none outline-none text-current font-mono p-0 focus:ring-0 caret-transparent" 
+                           autocomplete="off" 
+                           spellcheck="false" 
+                           autofocus />
+                    <!-- Visual Custom Blinking Cursor -->
+                    <span id="customCursor" class="inline-block w-2.5 h-4 bg-current animate-cursor ml-0.5 pointer-events-none absolute"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal Status Bar -->
+        <div class="bg-black/30 px-4 py-1.5 border-t border-white/10 flex items-center justify-between text-[11px] text-white/50 shrink-0 font-mono">
+            <div class="flex items-center gap-3">
+                <span><i class="fa-solid fa-code-branch text-xs mr-1"></i> main</span>
+                <span class="hidden sm:inline"><i class="fa-solid fa-server text-xs mr-1"></i> Localhost</span>
+                <span id="themeIndicator">Theme: Dracula</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="clockDisplay">00:00:00</span>
+                <span class="bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded text-[10px] font-semibold">ONLINE</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic Layer -->
+    <script>
+        // Virtual File System Data
+        // Projects Data
+        const projectsData = [
+            {
+                name: 'Real Estate Price Prediction',
+                desc: 'Built a model to predict real estate prices, helping buyers, sellers, and investors make informed, data-driven decisions',
+                tech: ['Python', 'Scikit-Learn', 'Streamlit'],
+                link: 'https://github.com/nipuran/real-estate-price-prediction'
+            },
+            {
+                name: 'Face Classification',
+                desc: 'Developed a model that classifies faces using core machine learning classification algorithms, achieving 83% accuracy',
+                tech: ['Python', 'Scikit-Learn', 'OpenCV', 'Streamlit'],
+                link: 'https://github.com/nipuran/sport-celebs-classifier'
+            }
+        ];
+
+        // Skills Data
+        const skillsData = {
+            "Statistical & Data Science Skills": ["Logistic Regression", "Classification Modelling", "Predictive Analytics", "Hypothesis Testing", "Performance Evaluation", "Data-Driven Problem Solving"],
+            "Frameworks": ["Python (scikit-learn, Pandas, NumPy)", "Advanced SQL", "Power BI", "Streamlit", "Git", "Microsoft Azure", "Excel", "Tableau"],
+        };
+
+        // Command Registry
+        const availableCommands = ['help', 'about', 'skills', 'projects', 'contact', 'clear', 'cls', 'theme', 'matrix', 'history', 'sudo', 'echo', 'cat', 'ls', 'date', 'whoami', 'crt'];
+
+        // State Tracking
+        let commandHistory = [];
+        let historyIndex = -1;
+        let currentThemeIndex = 0;
+        const themes = [
+            { id: 'dracula', name: 'Modern Dark Dracula', class: '' },
+            { id: 'matrix', name: 'Matrix Green', class: 'theme-matrix' },
+            { id: 'amber', name: 'Retro Amber', class: 'theme-amber' },
+            { id: 'cyberpunk', name: 'Cyberpunk Neon', class: 'theme-cyberpunk' }
+        ];
+
+        let isAudioEnabled = false;
+        let isMatrixRunning = false;
+        let matrixInterval = null;
+
+        // DOM Elements
+        const cliInput = document.getElementById('cliInput');
+        const customCursor = document.getElementById('customCursor');
+        const outputContainer = document.getElementById('outputContainer');
+        const terminalBody = document.getElementById('terminalBody');
+        const themeIndicator = document.getElementById('themeIndicator');
+        const clockDisplay = document.getElementById('clockDisplay');
+
+        // Audio Context Synthesizer for Mechanical Keyboard Feedback (No external asset files needed!)
+        function playKeyClick() {
+            if (!isAudioEnabled) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(1200 + Math.random() * 400, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.03);
+                
+                gain.gain.setValueAtTime(0.05, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start();
+                osc.stop(ctx.currentTime + 0.03);
+            } catch (e) {
+                // Audio Context fallback silent handle
+            }
+        }
+
+        function toggleAudio() {
+            isAudioEnabled = !isAudioEnabled;
+            const btn = document.getElementById('soundToggle');
+            btn.innerHTML = isAudioEnabled 
+                ? '<i class="fa-solid fa-volume-high text-green-400"></i>' 
+                : '<i class="fa-solid fa-volume-xmark text-red-400"></i>';
+            printOutput(`Sound effects ${isAudioEnabled ? 'ENABLED 🔊' : 'DISABLED 🔇'}`);
+        }
+
+        // Initialize Real-time Clock
+        function updateClock() {
+            const now = new Date();
+            clockDisplay.textContent = now.toLocaleTimeString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Focus Lock Management
+        function focusInput() {
+            cliInput.focus();
+            updateCursorPosition();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            // Keep focus in terminal unless user explicitly highlights text
+            if (document.activeElement !== cliInput && !window.getSelection().toString()) {
+                cliInput.focus();
+            }
+        });
+
+        // Update custom cursor alignment to mirror text entry
+        function updateCursorPosition() {
+            const tempSpan = document.createElement('span');
+            tempSpan.style.font = window.getComputedStyle(cliInput).font;
+            tempSpan.style.visibility = 'hidden';
+            tempSpan.style.position = 'absolute';
+            tempSpan.style.whiteSpace = 'pre';
+            tempSpan.textContent = cliInput.value.substring(0, cliInput.selectionStart) || '';
+            document.body.appendChild(tempSpan);
+            
+            const textWidth = tempSpan.getBoundingClientRect().width;
+            customCursor.style.left = `${textWidth}px`;
+            document.body.removeChild(tempSpan);
+        }
+
+        cliInput.addEventListener('input', () => {
+            updateCursorPosition();
+            playKeyClick();
+        });
+        cliInput.addEventListener('keyup', updateCursorPosition);
+        cliInput.addEventListener('click', updateCursorPosition);
+
+        // Command Listener & Keyboard Handlers
+        cliInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const commandStr = cliInput.value.trim();
+                if (commandStr.length > 0) {
+                    commandHistory.push(commandStr);
+                    historyIndex = commandHistory.length;
+                    processCommand(commandStr);
+                } else {
+                    printEmptyPrompt();
+                }
+                cliInput.value = '';
+                updateCursorPosition();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    cliInput.value = commandHistory[historyIndex];
+                    updateCursorPosition();
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    cliInput.value = commandHistory[historyIndex];
+                } else {
+                    historyIndex = commandHistory.length;
+                    cliInput.value = '';
+                }
+                updateCursorPosition();
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                handleTabCompletion();
+            } else if (e.ctrlKey && e.key === 'l') {
+                e.preventDefault();
+                clearTerminal();
+            }
+        });
+
+        // Tab Auto-Completion Engine
+        function handleTabCompletion() {
+            const inputVal = cliInput.value.trim();
+            if (!inputVal) return;
+
+            const parts = inputVal.split(' ');
+            if (parts.length === 1) {
+                // Command completion
+                const matches = availableCommands.filter(c => c.startsWith(inputVal));
+                if (matches.length === 1) {
+                    cliInput.value = matches[0] + ' ';
+                } else if (matches.length > 1) {
+                    printOutput(`<span class="text-white/50">Suggestions: ${matches.join('  ')}</span>`);
+                }
+            } else if (parts.length === 2 && (parts[0] === 'cat' || parts[0] === 'ls')) {
+                // File completion for 'cat'
+                const fileMatches = Object.keys(virtualFS).filter(f => f.startsWith(parts[1]));
+                if (fileMatches.length === 1) {
+                    cliInput.value = `${parts[0]} ${fileMatches[0]}`;
+                } else if (fileMatches.length > 1) {
+                    printOutput(`<span class="text-white/50">File suggestions: ${fileMatches.join('  ')}</span>`);
+                }
+            }
+            updateCursorPosition();
+        }
+
+        // Print Input Prompt Echo
+        function printEmptyPrompt() {
+            const line = document.createElement('div');
+            line.className = 'flex items-center gap-1 opacity-80';
+            line.innerHTML = `
+                <span style="color: var(--prompt-user)">nipuran@shell</span>
+                <span class="text-white/60">:</span>
+                <span style="color: var(--prompt-dir)">~</span>
+                <span class="text-white/80">$</span>
+            `;
+            outputContainer.appendChild(line);
+            scrollToBottom();
+        }
+
+        // Execute Command Helper (Used by quick buttons and clicks)
+        function executeCommand(cmdStr) {
+            cliInput.value = cmdStr;
+            updateCursorPosition();
+            commandHistory.push(cmdStr);
+            historyIndex = commandHistory.length;
+            processCommand(cmdStr);
+            cliInput.value = '';
+            updateCursorPosition();
+            focusInput();
+        }
+
+        // Main Processor Switch
+        function processCommand(rawInput) {
+            // Echo executed command to terminal stream
+            const commandLine = document.createElement('div');
+            commandLine.className = 'flex items-center gap-1 font-semibold';
+            commandLine.innerHTML = `
+                <span style="color: var(--prompt-user)">nipuran@shell</span>
+                <span class="text-white/60">:</span>
+                <span style="color: var(--prompt-dir)">~</span>
+                <span class="text-white/80">$</span>
+                <span class="ml-1 text-white">${escapeHtml(rawInput)}</span>
+            `;
+            outputContainer.appendChild(commandLine);
+
+            const tokens = rawInput.trim().split(/\s+/);
+            const cmd = tokens[0].toLowerCase();
+            const args = tokens.slice(1);
+
+            switch (cmd) {
+                case 'help':
+                    renderHelp();
+                    break;
+                case 'about':
+                    renderAbout();
+                    break;
+                case 'skills':
+                    renderSkills();
+                    break;
+                case 'projects':
+                    renderProjects();
+                    break;
+                case 'contact':
+                    renderContact();
+                    break;
+                case 'clear':
+                case 'cls':
+                    clearTerminal();
+                    return; // early return so prompt line clean
+                case 'theme':
+                    toggleTheme(args[0]);
+                    break;
+                case 'matrix':
+                    toggleMatrix();
+                    break;
+                case 'crt':
+                    toggleCRT();
+                    break;
+                case 'history':
+                    renderHistory();
+                    break;
+                case 'sudo':
+                    renderSudo();
+                    break;
+                case 'echo':
+                    printOutput(escapeHtml(args.join(' ')));
+                    break;
+                case 'cat':
+                    renderCat(args[0]);
+                    break;
+                case 'ls':
+                    renderLs();
+                    break;
+                case 'date':
+                    printOutput(new Date().toString());
+                    break;
+                case 'whoami':
+                    printOutput('guest_user (permissions: standard_visitor)');
+                    break;
+                default:
+                    printOutput(`<span class="text-red-400">Command not found: '${escapeHtml(cmd)}'. Type <span class="text-yellow-400 cursor-pointer underline" onclick="executeCommand('help')">help</span> to view available commands.</span>`);
+            }
+
+            scrollToBottom();
+        }
+
+        // Render Command Handlers
+        function printOutput(htmlContent) {
+            const outLine = document.createElement('div');
+            outLine.className = 'pl-2 border-l-2 border-white/10 space-y-1 my-1';
+            outLine.innerHTML = htmlContent;
+            outputContainer.appendChild(outLine);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function renderHelp() {
+            const helpText = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 my-1">
+                    <div><span class="text-yellow-400 font-bold">about</span> - Introduction & bio</div>
+                    <div><span class="text-yellow-400 font-bold">skills</span> - Tech stack & proficiencies</div>
+                    <div><span class="text-yellow-400 font-bold">projects</span> - Showcase of featured projects</div>
+                    <div><span class="text-yellow-400 font-bold">contact</span> - Email & social channels</div>
+                    <div><span class="text-yellow-400 font-bold">ls</span> - List virtual files</div>
+                    <div><span class="text-yellow-400 font-bold">cat [file]</span> - Display virtual file contents</div>
+                    <div><span class="text-yellow-400 font-bold">theme [name]</span> - Change color theme</div>
+                    <div><span class="text-yellow-400 font-bold">matrix</span> - Toggle Matrix code animation</div>
+                    <div><span class="text-yellow-400 font-bold">crt</span> - Toggle retro CRT overlay effect</div>
+                    <div><span class="text-yellow-400 font-bold">history</span> - Show input command history</div>
+                    <div><span class="text-yellow-400 font-bold">clear / cls</span> - Clear output window</div>
+                    <div><span class="text-yellow-400 font-bold">sudo</span> - Root privilege attempt</div>
+                </div>
+            `;
+            printOutput(helpText);
+        }
+
+        function renderAbout() {
+            const aboutHtml = `
+                <div class="space-y-2">
+                    <p class="text-sky-300 font-bold">Hi there! 👋 I'm Nipuran Nirman Sarania</p>
+                    <p>BCA graduate currently pursuing an MA/MSc in Analytics at Tata Institute of Social Sciences, with hands-on experience in machine learning and web development projects. Skilled in data analysis, data visualization, and translating business problems into data-driven solutions.</p>
+                    <div class="pt-1 flex gap-4 text-xs">
+                        <span>📍 Mumbai, Maharashtra</span>
+                        <span>💼 Open to Opportunities</span>
+                    </div>
+                </div>
+            `;
+            printOutput(aboutHtml);
+        }
+
+        function renderSkills() {
+            let html = '<div class="space-y-2 my-1">';
+            for (const [category, skills] of Object.entries(skillsData)) {
+                html += `
+                    <div>
+                        <span class="text-purple-400 font-bold">${category}:</span>
+                        <div class="flex flex-wrap gap-1.5 mt-1">
+                            ${skills.map(s => `<span class="bg-white/10 text-white px-2 py-0.5 rounded text-xs font-mono">${s}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            printOutput(html);
+        }
+
+        function renderProjects() {
+            let html = '<div class="grid grid-cols-1 gap-3 my-1">';
+            projectsData.forEach(p => {
+                html += `
+                    <div class="p-3 bg-white/5 rounded border border-white/10 hover:border-sky-400/50 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-sky-400">${p.name}</span>
+                            <a href="${p.link}" target="_blank" class="text-xs text-white/50 hover:text-white underline"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open</a>
+                        </div>
+                        <p class="text-xs text-white/80 my-1">${p.desc}</p>
+                        <div class="flex flex-wrap gap-1">
+                            ${p.tech.map(t => `<span class="text-[10px] bg-sky-950 text-sky-300 px-1.5 py-0.5 rounded">${t}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            printOutput(html);
+        }
+
+        function renderContact() {
+            const html = `
+                <div class="space-y-2 my-1">
+                    <p class="font-bold text-yellow-400">Let's Connect!</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <a href="mailto:nipuran0923@gmail.com" class="flex items-center gap-2 p-2 bg-white/5 rounded hover:bg-white/10 transition">
+                            <i class="fa-solid fa-envelope text-red-400 text-sm"></i>
+                            <span>nipuran0923@gmail.com</span>
+                        </a>
+                        <a href="https://github.com/nipuran" target="_blank" class="flex items-center gap-2 p-2 bg-white/5 rounded hover:bg-white/10 transition">
+                            <i class="fa-brands fa-github text-white text-sm"></i>
+                            <span>github.com/nipuran</span>
+                        </a>
+                        <a href="https://www.linkedin.com/in/nipuran/" target="_blank" class="flex items-center gap-2 p-2 bg-white/5 rounded hover:bg-white/10 transition">
+                            <i class="fa-brands fa-linkedin text-blue-400 text-sm"></i>
+                            <span>linkedin.com/in/nipuran</span>
+                        </a>
+                    </div>
+                </div>
+            `;
+            printOutput(html);
+        }
+
+        function renderLs() {
+            const files = Object.keys(virtualFS);
+            const html = `
+                <div class="flex flex-wrap gap-4 font-mono my-1">
+                    ${files.map(f => `
+                        <span class="text-sky-300 hover:underline cursor-pointer flex items-center gap-1" onclick="executeCommand('cat ${f}')">
+                            <i class="fa-regular fa-file-lines text-xs"></i> ${f}
+                        </span>
+                    `).join('')}
+                </div>
+            `;
+            printOutput(html);
+        }
+
+        function renderCat(fileName) {
+            if (!fileName) {
+                printOutput('<span class="text-red-400">Usage: cat [filename] (e.g., cat readme.md)</span>');
+                return;
+            }
+            const target = fileName.toLowerCase();
+            if (virtualFS[target]) {
+                const formattedContent = escapeHtml(virtualFS[target]).replace(/\n/g, '<br>');
+                printOutput(`<div class="bg-black/30 p-2.5 rounded font-mono text-xs whitespace-pre-wrap text-emerald-300">${formattedContent}</div>`);
+            } else {
+                printOutput(`<span class="text-red-400">cat: ${escapeHtml(fileName)}: No such file or directory</span>`);
+            }
+        }
+
+        function renderHistory() {
+            if (commandHistory.length === 0) {
+                printOutput('<span class="text-white/50">No command history recorded yet.</span>');
+                return;
+            }
+            let html = '<ol class="list-decimal list-inside space-y-0.5 text-xs text-white/80 my-1">';
+            commandHistory.forEach((cmd, idx) => {
+                html += `<li>${escapeHtml(cmd)}</li>`;
+            });
+            html += '</ol>';
+            printOutput(html);
+        }
+
+        function renderSudo() {
+            const quotes = [
+                "Nice try! Permission denied: User is not in the sudoers file. This incident will be reported.",
+                "Haha, you don't have superuser powers here! 🛑",
+                "Root access denied! Insert coffee ☕ to elevate privilege.",
+                "System lock: sudo attempt recorded in security log."
+            ];
+            const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+            printOutput(`<span class="text-red-400 font-bold">${randomQuote}</span>`);
+        }
+
+        function toggleTheme(targetTheme) {
+            if (targetTheme) {
+                const found = themes.find(t => t.id === targetTheme.toLowerCase());
+                if (found) {
+                    applyTheme(found);
+                    return;
+                }
+            }
+            currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+            applyTheme(themes[currentThemeIndex]);
+        }
+
+        function applyTheme(themeObj) {
+            document.body.className = `h-screen w-screen flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden relative select-none ${themeObj.class}`;
+            themeIndicator.textContent = `Theme: ${themeObj.name}`;
+            printOutput(`Switched color palette to <span class="font-bold text-yellow-400">${themeObj.name}</span>`);
+        }
+
+        function toggleCRT() {
+            const crt = document.getElementById('crtScreen');
+            crt.classList.toggle('hidden');
+            const state = crt.classList.contains('hidden') ? 'DISABLED' : 'ENABLED';
+            printOutput(`Retro CRT scanline effect ${state}`);
+        }
+
+        function clearTerminal() {
+            outputContainer.innerHTML = '';
+        }
+
+        function toggleMinimize() {
+            const body = document.getElementById('terminalBody');
+            body.classList.toggle('hidden');
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        function scrollToBottom() {
+            terminalBody.scrollTop = terminalBody.scrollHeight;
+        }
+
+        // Falling Matrix Digital Rain Animation Engine
+        function toggleMatrix() {
+            const canvas = document.getElementById('matrixCanvas');
+            if (isMatrixRunning) {
+                isMatrixRunning = false;
+                canvas.style.display = 'none';
+                clearInterval(matrixInterval);
+                printOutput('Matrix rain animation stopped.');
+            } else {
+                isMatrixRunning = true;
+                canvas.style.display = 'block';
+                startMatrix(canvas);
+                printOutput('Matrix rain animation triggered! Type <span class="text-yellow-400 cursor-pointer underline" onclick="executeCommand(\'matrix\')">matrix</span> again to stop.');
+            }
+        }
+
+        function startMatrix(canvas) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
+            const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*';
+            const alphabet = katakana + latin;
+
+            const fontSize = 16;
+            const columns = canvas.width / fontSize;
+            const rainDrops = Array.from({ length: Math.floor(columns) }).fill(1);
+
+            function draw() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#0F0';
+                ctx.font = fontSize + 'px monospace';
+
+                for (let i = 0; i < rainDrops.length; i++) {
+                    const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                    ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+
+                    if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                        rainDrops[i] = 0;
+                    }
+                    rainDrops[i]++;
+                }
+            }
+
+            if (matrixInterval) clearInterval(matrixInterval);
+            matrixInterval = setInterval(draw, 30);
+        }
+
+        // Canvas Window Resize handling
+        window.addEventListener('resize', () => {
+            const canvas = document.getElementById('matrixCanvas');
+            if (canvas && isMatrixRunning) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+        });
+
+        // Initial Focus Setup
+        window.onload = () => {
+            focusInput();
+        };
+    </script>
+</body>
+</html>
